@@ -1,0 +1,60 @@
+:root {
+  /* Color Palette - Minimalist Obsidian Dark with refined neutrals */
+  --bg-primary: #0a0a0c;
+  --bg-surface: #111115;
+  --bg-surface-elevated: #18181e;
+  --bg-surface-hover: #1f1f26;
+  --bg-glass: rgba(17, 17, 21, 0.85);
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-active: rgba(255, 255, 255, 0.24);
+
+  /* Typography */
+  --text-primary: #f4f4f6;
+  --text-secondary: #9090a0;
+  --text-muted: #5e5e6e;
+  --text-inverse: #09090b;
+
+  /* Accent Colors - Refined, not overly saturated */
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #2563eb;
+  --accent-subtle: rgba(59, 130, 246, 0.12);
+  
+  /* Status Colors */
+  --status-active-text: #34d399;
+  --status-active-bg: rgba(52, 211, 153, 0.12);
+  --status-active-border: rgba(52, 211, 153, 0.25);
+
+  --status-expiring-text: #fbbf24;
+  --status-expiring-bg: rgba(251, 191, 36, 0.12);
+  --status-expiring-border: rgba(251, 191, 36, 0.25);
+
+  --status-expired-text: #f87171;
+  --status-expired-bg: rgba(248, 113, 113, 0.12);
+  --status-expired-border: rgba(248, 113, 113, 0.25);
+
+  --status-lead-text: #a78bfa;
+  --status-lead-bg: rgba(167, 139, 250, 0.12);
+  --status-lead-border: rgba(167, 139, 250, 0.25);
+
+  /* WhatsApp & Action */
+  --whatsapp-color: #22c55e;
+  --whatsapp-bg: rgba(34, 197, 94, 0.12);
+
+  /* Spacing & Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
+
+  /* Fonts */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}

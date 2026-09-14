@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indian Modern Gym | Owner Operations Dashboard</title>
+  <meta name="description" content="Clean and minimal gym owner dashboard syncing Customer Google Form submissions directly into real-time member records, renewals, and operations.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Top Header Bar -->
+    <header class="top-header">
+      <div class="brand-section">
+        <div class="brand-info">
+          <h1>INDIAN MODERN GYM</h1>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Google Sheet Integration Settings -->
+        <button class="btn btn-secondary" id="openSettingsBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Connect Sheet
+        </button>
+      </div>
+    </header>
+
+    <!-- Executive KPI Overview Grid -->
+    <section class="kpi-grid" id="kpiGrid" aria-label="Gym Operations Key Metrics">
+      <!-- Dynamic KPI cards rendered via JS -->
+    </section>
+
+
+
+    <!-- Main Content Area: Members Table & Cards Grid -->
+    <main>
+      <!-- Table View -->
+      <div class="table-container" id="tableContainer">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Cards Grid View -->
+      <div class="cards-grid" id="cardsContainer" style="display: none;">
+        <!-- Rendered dynamically -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Member Profile Side Drawer -->
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="detail-drawer" id="detailDrawer" aria-label="Member Details">
+    <div class="drawer-header">
+      <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+        Member Profile & Record
+      </div>
+      <button class="modal-close-btn" id="closeDrawerBtn" aria-label="Close Profile Drawer">×</button>
+    </div>
+    <div class="drawer-body" id="drawerContent">
+      <!-- Rendered dynamically -->
+    </div>
+  </aside>
+
+  <!-- Google Sheet Connection & Integration Modal -->
+  <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="settingsModalTitle">Connect the Sheet</h2>
+        <button class="modal-close-btn" id="closeSettingsBtn" aria-label="Close Settings">×</button>
+      </div>
+
+      <form id="settingsForm">
+        <div class="form-group">
+          <label class="form-label" for="sheetUrlInput">Connected Google Sheet URL</label>
+          <input type="url" id="sheetUrlInput" class="form-input" placeholder="https://docs.google.com/spreadsheets/d/..." required>
+        </div>
+
+        <div style="margin-bottom: 1.25rem;">
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Save & Test Sync</button>
+        </div>
+      </form>
+
+      <!-- Instant CSV Drag & Drop Upload Zone -->
+      <div class="form-group" style="border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
+        <label class="form-label">Drop or Import Form Response CSV</label>
+        <div class="dropzone" id="csvDropzone">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-primary); margin-bottom: 0.35rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p style="font-size: 0.8rem; font-weight: 500;">Click to upload or drag & drop Google Sheet exported CSV</p>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Syncs instant updates with zero latency</span>
+          <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Walk-in / New Member Registration Modal -->
+  <div class="modal-backdrop" id="newMemberModal" role="dialog" aria-modal="true" aria-labelledby="newMemberModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="newMemberModalTitle">Register New Walk-in Member</h2>
+        <button class="modal-close-btn" id="closeNewMemberBtn" aria-label="Close Modal">×</button>
+      </div>
+
+      <form id="newMemberForm">
+        <div class="form-group">
+          <label class="form-label" for="newFullName">Customer Full Name *</label>
+          <input type="text" id="newFullName" name="fullName" class="form-input" placeholder="e.g. Rahul Sharma" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="newPhone">Phone / WhatsApp *</label>
+            <input type="tel" id="newPhone" name="phone" class="form-input" placeholder="+91 98765 43210" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newEmail">Email Address</label>
+            <input type="email" id="newEmail" name="email" class="form-input" placeholder="customer@gmail.com">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="newAge">Age</label>
+            <input type="number" id="newAge" name="age" class="form-input" placeholder="26" min="12" max="90">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newGender">Gender</label>
+            <select id="newGender" name="gender" class="form-input">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="newPlan">Membership Plan</label>
+            <select id="newPlan" name="plan" class="form-input">
+              <option value="1 Month">1 Month</option>
+              <option value="3 Months" selected>3 Months</option>
+              <option value="6 Months">6 Months</option>
+              <option value="1 Year">1 Year</option>
+              <option value="Personal Training">Personal Training (PT)</option>
+              <option value="Trial Day Pass">Trial Day Pass</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newGoal">Fitness Goal</label>
+            <select id="newGoal" name="fitnessGoal" class="form-input">
+              <option value="Weight Loss">Weight Loss</option>
+              <option value="Muscle Building" selected>Muscle Building</option>
+              <option value="Strength & Conditioning">Strength & Conditioning</option>
+              <option value="Cardio Endurance">Cardio Endurance</option>
+              <option value="General Fitness">General Fitness</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="newSlot">Preferred Slot</label>
+            <select id="newSlot" name="preferredSlot" class="form-input">
+              <option value="Morning (6 AM - 9 AM)" selected>Morning (6 AM - 9 AM)</option>
+              <option value="Midday (11 AM - 3 PM)">Midday (11 AM - 3 PM)</option>
+              <option value="Evening (5 PM - 9 PM)">Evening (5 PM - 9 PM)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="newFee">Fee Amount (₹)</label>
+            <input type="number" id="newFee" name="feeAmount" class="form-input" value="4500">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="newEmergency">Emergency Contact</label>
+          <input type="text" id="newEmergency" name="emergencyContact" class="form-input" placeholder="+91 98765 00000 (Spouse/Parent)">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="newMedical">Medical Notes / Injuries</label>
+          <input type="text" id="newMedical" name="medicalNotes" class="form-input" placeholder="e.g. Previous knee injury, none, etc.">
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
+          <button type="button" class="btn btn-secondary" id="cancelNewMemberBtn" onclick="document.getElementById('newMemberModal').classList.remove('open')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Member</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
