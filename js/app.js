@@ -321,6 +321,10 @@ function setupModalsAndDrawers() {
 }
 
 function openSettingsModal() {
+  const input = document.getElementById('sheetUrlInput');
+  if (input) {
+    input.value = store.sheetUrl;
+  }
   document.getElementById('settingsModal').classList.add('open');
 }
 

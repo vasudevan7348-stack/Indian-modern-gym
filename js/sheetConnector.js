@@ -3,31 +3,40 @@
 export const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/12hTWm6WIPbimEjmwdz2Q_SX2FhDMBfM6VTaDd2Dzsd0/edit?resourcekey=&gid=137277096#gid=137277096';
 
 /**
- * Parses Google Sheet URL to extract Spreadsheet ID, GID and published status
+ * Parses any Google Sheet URL or ID (including /u/0/d/, /u/1/d/, /d/e/ published, and raw keys)
  */
 export function parseSheetUrl(url) {
   if (!url) return null;
-  const str = String(url).trim();
+  const str = String(url).trim().replace(/^["']|["']$/g, '');
 
-  // Check for published web link (e.g. /spreadsheets/d/e/2PACX-.../pub...)
-  const pubMatch = str.match(/\/spreadsheets\/d\/e\/([a-zA-Z0-9-_]+)/);
+  // 1. Direct 25+ character Spreadsheet ID
+  if (/^[a-zA-Z0-9-_]{25,}$/.test(str)) {
+    return {
+      id: str,
+      isPublished: false,
+      gid: null
+    };
+  }
+
+  // 2. Published Google Sheet web link (/d/e/2PACX-.../pub...)
+  const pubMatch = str.match(/\/d\/e\/([a-zA-Z0-9-_]+)/);
   if (pubMatch) {
     const gidMatch = str.match(/[#&?]gid=([0-9]+)/);
     return {
       id: pubMatch[1],
       isPublished: true,
-      gid: gidMatch ? gidMatch[1] : '0'
+      gid: gidMatch ? gidMatch[1] : null
     };
   }
 
-  // Standard Google Sheet URL
-  const idMatch = str.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  // 3. Standard Google Sheet URL (supports /d/ID, /spreadsheets/d/ID, /spreadsheets/u/0/d/ID, /u/1/d/ID, etc.)
+  const idMatch = str.match(/\/d\/([a-zA-Z0-9-_]+)/);
   const gidMatch = str.match(/[#&?]gid=([0-9]+)/);
 
   return {
     id: idMatch ? idMatch[1] : null,
     isPublished: false,
-    gid: gidMatch ? gidMatch[1] : '0'
+    gid: gidMatch ? gidMatch[1] : null
   };
 }
 
@@ -38,15 +47,17 @@ export function buildExportUrls(url) {
   const parsed = parseSheetUrl(url);
   if (!parsed || !parsed.id) return [];
 
+  const gidStr = parsed.gid ? parsed.gid : '0';
+
   if (parsed.isPublished) {
     return [
-      `https://docs.google.com/spreadsheets/d/e/${parsed.id}/pub?output=csv&gid=${parsed.gid}`,
+      `https://docs.google.com/spreadsheets/d/e/${parsed.id}/pub?output=csv&gid=${gidStr}`,
       `https://docs.google.com/spreadsheets/d/e/${parsed.id}/pub?output=csv`
     ];
   }
 
-  const baseCsv = `https://docs.google.com/spreadsheets/d/${parsed.id}/export?format=csv&gid=${parsed.gid}`;
-  const gvizCsv = `https://docs.google.com/spreadsheets/d/${parsed.id}/gviz/tq?tqx=out:csv&gid=${parsed.gid}`;
+  const baseCsv = `https://docs.google.com/spreadsheets/d/${parsed.id}/export?format=csv&gid=${gidStr}`;
+  const gvizCsv = `https://docs.google.com/spreadsheets/d/${parsed.id}/gviz/tq?tqx=out:csv&gid=${gidStr}`;
 
   return [baseCsv, gvizCsv];
 }
@@ -315,14 +326,41 @@ export function fetchGoogleSheetViaJSONP(url) {
     window[callbackName] = function(response) {
       cleanup();
       try {
-        if (!response || !response.table) {
-          return reject(new Error('Invalid response from Google Sheets API.'));
+        if (!response) {
+          return reject(new Error('Empty response received from Google Sheets.'));
         }
 
-        const cols = (response.table.cols || []).map((c, i) => (c && (c.label || c.id) ? (c.label || c.id) : `col_${i}`).trim());
+        if (response.status === 'error') {
+          const errDetail = (response.errors && response.errors[0] && (response.errors[0].detailed_message || response.errors[0].message)) || 'Invalid sheet query';
+          return reject(new Error(`Google Sheet returned error: ${errDetail}. Ensure sheet is public.`));
+        }
+
+        if (!response.table) {
+          return reject(new Error('No table structure found in Google Sheet response.'));
+        }
+
+        let cols = (response.table.cols || []).map((c, i) => (c && c.label ? c.label.trim() : ''));
+        let rows = response.table.rows || [];
+
+        // If Google did not assign labels to cols (e.g. sheet headers are not frozen), use row 0 values as column titles
+        const allColsEmpty = cols.length === 0 || cols.every(c => !c);
+        if (allColsEmpty && rows.length > 0) {
+          const headerRow = rows[0];
+          if (headerRow && headerRow.c) {
+            cols = headerRow.c.map((cell, i) => {
+              if (!cell) return `col_${i}`;
+              return String(cell.f !== undefined && cell.f !== null ? cell.f : (cell.v !== undefined && cell.v !== null ? cell.v : `col_${i}`)).trim();
+            });
+            rows = rows.slice(1);
+          }
+        } else {
+          // Fill in any individual blank column headers
+          cols = cols.map((c, i) => c || (response.table.cols[i] && response.table.cols[i].id) || `col_${i}`);
+        }
+
         const rawList = [];
 
-        for (const row of (response.table.rows || [])) {
+        for (const row of rows) {
           if (!row || !row.c) continue;
           const rowObj = {};
           let hasVal = false;
@@ -355,10 +393,11 @@ export function fetchGoogleSheetViaJSONP(url) {
       }
     };
 
-    script.src = `https://docs.google.com/spreadsheets/d/${parsed.id}/gviz/tq?tqx=responseHandler:${callbackName}&gid=${parsed.gid}&t=${Date.now()}`;
+    const gidParam = parsed.gid ? `&gid=${encodeURIComponent(parsed.gid)}` : '';
+    script.src = `https://docs.google.com/spreadsheets/d/${parsed.id}/gviz/tq?tqx=responseHandler:${callbackName}${gidParam}&t=${Date.now()}`;
     script.onerror = function() {
       cleanup();
-      reject(new Error('Failed to load Google Sheet. Please check the sheet URL and ensure sharing is "Anyone with the link can view".'));
+      reject(new Error('Failed to load Google Sheet. In Google Sheets, click "Share" at top-right and set General Access to "Anyone with the link can view".'));
     };
 
     document.head.appendChild(script);
