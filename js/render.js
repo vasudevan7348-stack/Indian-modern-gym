@@ -205,19 +205,14 @@ function renderTable(members, container) {
               </a>
             </td>
             <td>
-              <div class="contact-actions">
-                <span class="phone-link" style="font-family: var(--font-mono); font-size: 0.8rem;">
-                  ${escapeHtml(displayWhatsapp)}
-                </span>
-                <a href="${getWhatsAppUrl(displayWhatsapp, member.fullName, member.daysRemaining <= 7 ? 'renewal' : 'welcome')}" 
-                   target="_blank" 
-                   rel="noopener" 
-                   class="whatsapp-btn" 
-                   title="Open WhatsApp Chat" 
-                   onclick="event.stopPropagation()">
-                  ${icons.whatsapp}
-                </a>
-              </div>
+              <a href="${getWhatsAppUrl(displayWhatsapp, member.fullName, member.daysRemaining <= 7 ? 'renewal' : 'welcome')}" 
+                 target="_blank" 
+                 rel="noopener" 
+                 class="whatsapp-link" 
+                 title="Click to Chat on WhatsApp" 
+                 onclick="event.stopPropagation()">
+                ${escapeHtml(displayWhatsapp)}
+              </a>
             </td>
             <td>
               <span class="pill-neutral" style="font-weight: 600; font-size: 0.8rem; padding: 0.25rem 0.6rem; color: var(--text-primary);">
@@ -346,7 +341,13 @@ function renderDrawer() {
       <div>
         <div class="detail-item-label">WhatsApp Number</div>
         <div class="detail-item-val">
-          <span style="font-family: var(--font-mono); font-size: 0.88rem;">${escapeHtml(displayWhatsapp)}</span>
+          <a href="${getWhatsAppUrl(displayWhatsapp, member.fullName, member.daysRemaining <= 7 ? 'renewal' : 'welcome')}" 
+             target="_blank" 
+             rel="noopener" 
+             class="whatsapp-link" 
+             title="Click to Chat on WhatsApp">
+            ${escapeHtml(displayWhatsapp)}
+          </a>
         </div>
       </div>
       <div>

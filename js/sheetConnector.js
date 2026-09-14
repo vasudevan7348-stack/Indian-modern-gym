@@ -167,14 +167,14 @@ export function normalizeSheetData(rawList, headers = []) {
 
     // Calculate start, expiry, days remaining, and status
     let startDate = timestamp.includes(' ') ? timestamp.split(' ')[0] : timestamp;
-    if (isNaN(new Date(startDate).getTime())) {
-      startDate = new Date().toISOString().slice(0, 10);
+    let startObj = new Date(startDate);
+    if (isNaN(startObj.getTime())) {
+      startObj = new Date();
     }
+    startObj.setHours(0, 0, 0, 0);
 
-    const planMonths = detectMonthsFromPlan(plan);
-    const startObj = new Date(startDate);
-    const expiryObj = new Date(startObj);
-    expiryObj.setMonth(expiryObj.getMonth() + planMonths);
+    const durationDays = getPlanDurationInDays(plan);
+    const expiryObj = new Date(startObj.getTime() + durationDays * 24 * 60 * 60 * 1000);
     const expiryDate = expiryObj.toISOString().slice(0, 10);
 
     const today = new Date();
@@ -218,14 +218,38 @@ export function normalizeSheetData(rawList, headers = []) {
   });
 }
 
-function detectMonthsFromPlan(planStr) {
-  const p = (planStr || '').toLowerCase();
-  if (p.includes('year') || p.includes('12 month') || p.includes('annual')) return 12;
-  if (p.includes('6 month') || p.includes('half')) return 6;
-  if (p.includes('3 month') || p.includes('quarter')) return 3;
-  if (p.includes('pt') || p.includes('personal')) return 3;
+/**
+ * Maps plan name or number to exact calendar duration in days
+ * 1m = 30 days
+ * 3m = 90 days
+ * 6m = 180 days
+ * 12m = 360 days
+ */
+export function getPlanDurationInDays(planStr) {
+  if (!planStr) return 30;
+  const p = String(planStr).trim().toLowerCase();
+
+  // Extract number from plan string if present (e.g. "3", "3 months", "6", "1", "12")
+  const numMatch = p.match(/\b(\d+)\b/);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    if (p.includes('year') || p.includes('annual') || num === 12) return 360;
+    if (num === 6 || p.includes('half')) return 180;
+    if (num === 3 || p.includes('quarter')) return 90;
+    if (num === 1) return 30;
+    if (num > 0 && num <= 36) return num * 30;
+  }
+
+  if (p.includes('year') || p.includes('annual')) return 360;
+  if (p.includes('half')) return 180;
+  if (p.includes('quarter')) return 90;
+  if (p.includes('pt') || p.includes('personal')) return 90;
   if (p.includes('trial') || p.includes('day')) return 0;
-  return 1;
+  return 30;
+}
+
+export function detectMonthsFromPlan(planStr) {
+  return Math.round(getPlanDurationInDays(planStr) / 30);
 }
 
 function calculateEstimateFee(planStr) {
