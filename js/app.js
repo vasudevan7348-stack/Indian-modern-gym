@@ -144,16 +144,15 @@ async function syncWithSheet(showToasts = true) {
       store.setMembers(result.data, result.source);
       if (showToasts) showToast(`Successfully synced ${result.data.length} responses from Google Sheet!`, '✓');
     } else {
-      // If private, maintain current loaded data and inform owner how to make it public or drop CSV
-      store.setSyncState('synced', 'Showing verified form responses (Local sync ready)');
+      const errMsg = result.error || 'Unable to load sheet. Ensure sharing is "Anyone with the link can view".';
+      store.setSyncState('error', errMsg);
       if (showToasts) {
-        showToast('Google Sheet requires public access or CSV drop. See Settings.', 'ℹ️');
-        openSettingsModal();
+        showToast(errMsg, '⚠️');
       }
     }
   } catch (err) {
-    store.setSyncState('synced', 'Using local responses');
-    if (showToasts) showToast('Sync notice: Using current verified responses.', 'ℹ️');
+    store.setSyncState('error', err.message);
+    if (showToasts) showToast('Sync error: ' + err.message, '⚠️');
   }
 }
 

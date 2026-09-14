@@ -1,5 +1,5 @@
 import { initialGymResponses } from './mockData.js';
-import { DEFAULT_SHEET_URL } from './sheetConnector.js';
+import { DEFAULT_SHEET_URL, detectMonthsFromPlan, getPlanDurationInDays } from './sheetConnector.js';
 
 const STORAGE_KEY = 'apex_gym_members_v1';
 const SHEET_URL_KEY = 'apex_gym_sheet_url_v1';
@@ -35,10 +35,41 @@ class Store {
           return parsed.map(m => {
             const validPhone = (m.phone && m.phone !== '—') ? m.phone : (m.whatsapp && m.whatsapp !== '—') ? m.whatsapp : '—';
             const validWhatsapp = (m.whatsapp && m.whatsapp !== '—') ? m.whatsapp : validPhone;
+
+            // Recalculate accurately based on exact plan duration in days (1m=30, 3m=90, 6m=180, 12m=360)
+            const durationDays = getPlanDurationInDays(m.plan);
+            let startDate = m.startDate || (m.timestamp ? m.timestamp.split(' ')[0] : new Date().toISOString().slice(0, 10));
+            let startObj = new Date(startDate);
+            if (isNaN(startObj.getTime())) {
+              startObj = new Date();
+            }
+            startObj.setHours(0, 0, 0, 0);
+
+            const expiryObj = new Date(startObj.getTime() + durationDays * 24 * 60 * 60 * 1000);
+            const expiryDate = expiryObj.toISOString().slice(0, 10);
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const diffTime = expiryObj.getTime() - today.getTime();
+            const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            let status = 'active';
+            if (String(m.plan || '').toLowerCase().includes('trial') || String(m.plan || '').toLowerCase().includes('lead')) {
+              status = 'lead';
+            } else if (daysRemaining < 0) {
+              status = 'expired';
+            } else if (daysRemaining <= 7) {
+              status = 'expiring';
+            }
+
             return {
               ...m,
               phone: validPhone,
-              whatsapp: validWhatsapp
+              whatsapp: validWhatsapp,
+              startDate,
+              expiryDate,
+              daysRemaining,
+              status
             };
           });
         }
@@ -108,12 +139,14 @@ class Store {
     if (!member) return;
 
     const baseDate = new Date(member.daysRemaining > 0 ? member.expiryDate : new Date());
-    baseDate.setMonth(baseDate.getMonth() + additionalMonths);
-    const newExpiry = baseDate.toISOString().slice(0, 10);
+    baseDate.setHours(0, 0, 0, 0);
+    const additionalDays = additionalMonths === 1 ? 30 : additionalMonths === 3 ? 90 : additionalMonths === 6 ? 180 : additionalMonths === 12 ? 360 : additionalMonths * 30;
+    const newExpiryObj = new Date(baseDate.getTime() + additionalDays * 24 * 60 * 60 * 1000);
+    const newExpiry = newExpiryObj.toISOString().slice(0, 10);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const diffTime = baseDate.getTime() - today.getTime();
+    const diffTime = newExpiryObj.getTime() - today.getTime();
     const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     this.updateMember(id, {

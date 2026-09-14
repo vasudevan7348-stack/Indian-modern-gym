@@ -3,15 +3,30 @@
 export const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/12hTWm6WIPbimEjmwdz2Q_SX2FhDMBfM6VTaDd2Dzsd0/edit?resourcekey=&gid=137277096#gid=137277096';
 
 /**
- * Parses Google Sheet URL to extract Spreadsheet ID and GID (sheet id)
+ * Parses Google Sheet URL to extract Spreadsheet ID, GID and published status
  */
 export function parseSheetUrl(url) {
   if (!url) return null;
-  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
+  const str = String(url).trim();
+
+  // Check for published web link (e.g. /spreadsheets/d/e/2PACX-.../pub...)
+  const pubMatch = str.match(/\/spreadsheets\/d\/e\/([a-zA-Z0-9-_]+)/);
+  if (pubMatch) {
+    const gidMatch = str.match(/[#&?]gid=([0-9]+)/);
+    return {
+      id: pubMatch[1],
+      isPublished: true,
+      gid: gidMatch ? gidMatch[1] : '0'
+    };
+  }
+
+  // Standard Google Sheet URL
+  const idMatch = str.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  const gidMatch = str.match(/[#&?]gid=([0-9]+)/);
 
   return {
     id: idMatch ? idMatch[1] : null,
+    isPublished: false,
     gid: gidMatch ? gidMatch[1] : '0'
   };
 }
@@ -23,14 +38,17 @@ export function buildExportUrls(url) {
   const parsed = parseSheetUrl(url);
   if (!parsed || !parsed.id) return [];
 
+  if (parsed.isPublished) {
+    return [
+      `https://docs.google.com/spreadsheets/d/e/${parsed.id}/pub?output=csv&gid=${parsed.gid}`,
+      `https://docs.google.com/spreadsheets/d/e/${parsed.id}/pub?output=csv`
+    ];
+  }
+
   const baseCsv = `https://docs.google.com/spreadsheets/d/${parsed.id}/export?format=csv&gid=${parsed.gid}`;
   const gvizCsv = `https://docs.google.com/spreadsheets/d/${parsed.id}/gviz/tq?tqx=out:csv&gid=${parsed.gid}`;
-  
-  // Public CORS proxies as fallbacks for browser client requests
-  const proxy1 = `https://api.allorigins.win/raw?url=${encodeURIComponent(baseCsv)}`;
-  const proxy2 = `https://corsproxy.io/?${encodeURIComponent(baseCsv)}`;
 
-  return [baseCsv, gvizCsv, proxy1, proxy2];
+  return [baseCsv, gvizCsv];
 }
 
 /**
@@ -167,14 +185,14 @@ export function normalizeSheetData(rawList, headers = []) {
 
     // Calculate start, expiry, days remaining, and status
     let startDate = timestamp.includes(' ') ? timestamp.split(' ')[0] : timestamp;
-    if (isNaN(new Date(startDate).getTime())) {
-      startDate = new Date().toISOString().slice(0, 10);
+    let startObj = new Date(startDate);
+    if (isNaN(startObj.getTime())) {
+      startObj = new Date();
     }
+    startObj.setHours(0, 0, 0, 0);
 
-    const planMonths = detectMonthsFromPlan(plan);
-    const startObj = new Date(startDate);
-    const expiryObj = new Date(startObj);
-    expiryObj.setMonth(expiryObj.getMonth() + planMonths);
+    const durationDays = getPlanDurationInDays(plan);
+    const expiryObj = new Date(startObj.getTime() + durationDays * 24 * 60 * 60 * 1000);
     const expiryDate = expiryObj.toISOString().slice(0, 10);
 
     const today = new Date();
@@ -218,14 +236,38 @@ export function normalizeSheetData(rawList, headers = []) {
   });
 }
 
-function detectMonthsFromPlan(planStr) {
-  const p = (planStr || '').toLowerCase();
-  if (p.includes('year') || p.includes('12 month') || p.includes('annual')) return 12;
-  if (p.includes('6 month') || p.includes('half')) return 6;
-  if (p.includes('3 month') || p.includes('quarter')) return 3;
-  if (p.includes('pt') || p.includes('personal')) return 3;
+/**
+ * Maps plan name or number to exact calendar duration in days
+ * 1m = 30 days
+ * 3m = 90 days
+ * 6m = 180 days
+ * 12m = 360 days
+ */
+export function getPlanDurationInDays(planStr) {
+  if (!planStr) return 30;
+  const p = String(planStr).trim().toLowerCase();
+
+  // Extract number from plan string if present (e.g. "3", "3 months", "6", "1", "12")
+  const numMatch = p.match(/\b(\d+)\b/);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    if (p.includes('year') || p.includes('annual') || num === 12) return 360;
+    if (num === 6 || p.includes('half')) return 180;
+    if (num === 3 || p.includes('quarter')) return 90;
+    if (num === 1) return 30;
+    if (num > 0 && num <= 36) return num * 30;
+  }
+
+  if (p.includes('year') || p.includes('annual')) return 360;
+  if (p.includes('half')) return 180;
+  if (p.includes('quarter')) return 90;
+  if (p.includes('pt') || p.includes('personal')) return 90;
   if (p.includes('trial') || p.includes('day')) return 0;
-  return 1;
+  return 30;
+}
+
+export function detectMonthsFromPlan(planStr) {
+  return Math.round(getPlanDurationInDays(planStr) / 30);
 }
 
 function calculateEstimateFee(planStr) {
@@ -239,9 +281,115 @@ function calculateEstimateFee(planStr) {
 }
 
 /**
- * Attempts to fetch live Google Sheet data across multiple endpoints
+ * Browser-native JSONP fetcher for Google Sheets Visualization API.
+ * This completely bypasses CORS restrictions and works reliably on all deployed domains
+ * (Vercel, Netlify, GitHub Pages, custom domains, etc.) without third-party proxies.
+ */
+export function fetchGoogleSheetViaJSONP(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = parseSheetUrl(url);
+    if (!parsed || !parsed.id || parsed.isPublished) {
+      return reject(new Error('Use standard fetch for published CSV link'));
+    }
+
+    const callbackName = 'gviz_jsonp_' + Math.random().toString(36).slice(2) + '_' + Date.now();
+    const script = document.createElement('script');
+    
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Google Sheet connection timed out. Ensure the sheet is shared as "Anyone with the link can view".'));
+    }, 10000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      try {
+        delete window[callbackName];
+      } catch (e) {
+        window[callbackName] = undefined;
+      }
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    }
+
+    window[callbackName] = function(response) {
+      cleanup();
+      try {
+        if (!response || !response.table) {
+          return reject(new Error('Invalid response from Google Sheets API.'));
+        }
+
+        const cols = (response.table.cols || []).map((c, i) => (c && (c.label || c.id) ? (c.label || c.id) : `col_${i}`).trim());
+        const rawList = [];
+
+        for (const row of (response.table.rows || [])) {
+          if (!row || !row.c) continue;
+          const rowObj = {};
+          let hasVal = false;
+
+          for (let i = 0; i < cols.length; i++) {
+            const cell = row.c[i];
+            const colName = cols[i] || `col_${i}`;
+            let val = '';
+            if (cell) {
+              val = (cell.f !== undefined && cell.f !== null) ? String(cell.f) : (cell.v !== undefined && cell.v !== null ? String(cell.v) : '');
+            }
+            rowObj[colName] = val.trim();
+            if (val.trim()) hasVal = true;
+          }
+
+          if (hasVal) {
+            rawList.push(rowObj);
+          }
+        }
+
+        const normalized = normalizeSheetData(rawList, cols);
+        resolve({
+          success: true,
+          data: normalized,
+          source: 'Google Sheet Live',
+          rawRowCount: normalized.length
+        });
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    script.src = `https://docs.google.com/spreadsheets/d/${parsed.id}/gviz/tq?tqx=responseHandler:${callbackName}&gid=${parsed.gid}&t=${Date.now()}`;
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('Failed to load Google Sheet. Please check the sheet URL and ensure sharing is "Anyone with the link can view".'));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Attempts to fetch live Google Sheet data across JSONP and direct export endpoints
  */
 export async function fetchGoogleSheet(url) {
+  const parsed = parseSheetUrl(url);
+  if (!parsed || !parsed.id) {
+    return {
+      success: false,
+      error: 'Invalid Google Sheet URL format. Please provide a valid docs.google.com/spreadsheets link.'
+    };
+  }
+
+  // 1. In browser environments: try JSONP first (100% CORS-proof and instant on deployed sites)
+  if (typeof document !== 'undefined' && !parsed.isPublished) {
+    try {
+      const jsonpResult = await fetchGoogleSheetViaJSONP(url);
+      if (jsonpResult && jsonpResult.success && jsonpResult.data && jsonpResult.data.length > 0) {
+        return jsonpResult;
+      }
+    } catch (jsonpErr) {
+      console.warn('JSONP fetch notice:', jsonpErr.message);
+    }
+  }
+
+  // 2. Direct fetch fallbacks (for published web CSV links or Node runtime)
   const candidateUrls = buildExportUrls(url);
   let lastError = null;
 
@@ -258,13 +406,13 @@ export async function fetchGoogleSheet(url) {
       if (response.ok) {
         const text = await response.text();
         if (text && (text.includes(',') || text.includes('\t')) && !text.includes('Sign in to your Google Account')) {
-          const parsed = parseCSV(text);
-          if (parsed.length > 0) {
+          const parsedData = parseCSV(text);
+          if (parsedData.length > 0) {
             return {
               success: true,
-              data: parsed,
+              data: parsedData,
               source: 'Google Sheet Live',
-              rawRowCount: parsed.length
+              rawRowCount: parsedData.length
             };
           }
         }
@@ -276,7 +424,7 @@ export async function fetchGoogleSheet(url) {
 
   return {
     success: false,
-    error: lastError ? lastError.message : 'Google Sheet is currently set to Private or not published to web.',
+    error: lastError ? lastError.message : 'Google Sheet is currently set to Private or unreachable. Please set sharing to "Anyone with the link can view".',
     requiresAuth: true
   };
 }

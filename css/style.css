@@ -562,6 +562,24 @@ body {
   transform: scale(1.05);
 }
 
+/* Light Green Clickable WhatsApp Number */
+.whatsapp-link {
+  color: #4ade80;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.whatsapp-link:hover {
+  color: #86efac;
+  text-decoration: underline;
+}
+
 /* Status Badges */
 .badge {
   display: inline-flex;
